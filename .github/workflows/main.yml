@@ -1,0 +1,58 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14' 
+
+      - name: Install npm dependencies
+        run: |
+          npm install
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # Update with your AWS region
+
+      - name: Login to AWS ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 654654623105.dkr.ecr.us-east-1.amazonaws.com
+
+
+      - name: Build Docker image
+        run: |
+          docker build -t 654654623105.dkr.ecr.us-east-1.amazonaws.com/my-app:latest -f src/app/Dockerfile .
+
+      - name: Push Docker image
+        run: |
+          docker push 654654623105.dkr.ecr.us-east-1.amazonaws.com/my-app:latest
+          
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v1
+        with:
+          version: 'latest'
+
+      - name: Configure AWS credentials for kubectl
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name my-cluster
+
+      - name: Update Kubernetes deployment
+        run: |
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/service.yaml
+          kubectl apply -f kubernetes/ingress.yaml
